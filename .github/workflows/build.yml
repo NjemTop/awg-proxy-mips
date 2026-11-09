@@ -33,10 +33,10 @@ jobs:
           sudo apt-get install -y -qq qemu-user-static file
 
       - name: Сборка под mipsel
-        run: ZIG=".venv/bin/python -m ziglang" ./build.sh build
+        run: ZIG="$PWD/.venv/bin/python -m ziglang" ./build.sh build
 
       - name: Тесты автора на MIPS в qemu
-        run: ZIG=".venv/bin/python -m ziglang" ./build.sh test-qemu
+        run: ZIG="$PWD/.venv/bin/python -m ziglang" ./build.sh test-qemu
 
       - name: Запуск бинарника в qemu
         run: ./build.sh smoke
