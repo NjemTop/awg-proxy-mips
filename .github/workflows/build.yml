@@ -1,0 +1,64 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Исходники автора (тег и коммит из upstream.env)
+        run: ./build.sh fetch
+
+      - name: Тесты автора на x86_64
+        run: make -C upstream test
+
+      - name: Компилятор и эмулятор
+        run: |
+          . ./upstream.env
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet "ziglang==${ZIG_VERSION}"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-user-static file
+
+      - name: Сборка под mipsel
+        run: ZIG=".venv/bin/python -m ziglang" ./build.sh build
+
+      - name: Тесты автора на MIPS в qemu
+        run: ZIG=".venv/bin/python -m ziglang" ./build.sh test-qemu
+
+      - name: Запуск бинарника в qemu
+        run: ./build.sh smoke
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: awg-proxy-linux-mipsel
+          path: dist/
+
+      - name: Релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . ./upstream.env
+          {
+            echo "awg-proxy ${UPSTREAM_TAG} (${UPSTREAM_COMMIT}) для mipsel: MIPS32r2, без FPU, статически."
+            echo
+            echo "Собрано в этом запуске CI: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo '```'
+            cat dist/SHA256SUMS dist/MD5SUMS
+            echo '```'
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md

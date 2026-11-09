@@ -1,0 +1,5 @@
+upstream/
+dist/
+build/
+.venv/
+notes.md
